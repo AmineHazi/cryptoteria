@@ -9,21 +9,52 @@ PARAM_G = 0x3FB32C9B73134D0B2E77506660EDBD484CA7B18F21EF205407F4793A1A0BA12510DB
 
 # Hash function
 def H(message):
+    """
+    Hashes the input message using SHA256.
+
+    Args:
+        message (bytes): The message to be hashed.
+
+    Returns:
+        int: The integer representation of the hash.
+    """
     h = SHA256.new(message)
     return int(h.hexdigest(), 16)
 
 # Generate DSA keys
 def DSA_generate_keys():
+    """
+    Generates a pair of DSA keys.
+
+    Returns:
+        tuple: A tuple containing the private key (x) and the public key (y).
+    """
     x = randint(1, PARAM_Q - 1)  # Private key
     y = pow(PARAM_G, x, PARAM_P)  # Public key
     return x, y
 
 # Generate nonce
 def DSA_generate_nonce():
+    """
+    Generates a nonce for DSA.
+
+    Returns:
+        int: A random nonce.
+    """
     return randint(1, PARAM_Q - 1)
 
 # Generate DSA signature
 def DSA_sign(message, x):
+    """
+    Generates a DSA signature for the given message.
+
+    Args:
+        message (bytes): The message to be signed.
+        x (int): The private key.
+
+    Returns:
+        tuple: A tuple containing the signature components (r, s).
+    """
     k = DSA_generate_nonce()
     r = pow(PARAM_G, k, PARAM_P) % PARAM_Q
     if r == 0:
@@ -39,6 +70,18 @@ def DSA_sign(message, x):
 
 # Verify DSA signature
 def DSA_verify(message, r, s, y):
+    """
+    Verifies a DSA signature.
+
+    Args:
+        message (bytes): The signed message.
+        r (int): The first component of the signature.
+        s (int): The second component of the signature.
+        y (int): The public key.
+
+    Returns:
+        bool: True if the signature is valid, False otherwise.
+    """
     if not (0 < r < PARAM_Q and 0 < s < PARAM_Q):
         return False
 

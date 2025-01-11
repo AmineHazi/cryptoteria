@@ -1,84 +1,90 @@
-from ecelgamal import ECEG_generate_keys, ECEG_encrypt, ECEG_decrypt, bruteECLog
-from ecdsa import ECDSA_generate_keys, ECDSA_sign, ECDSA_verify
+from ecelgamal import ECEG_generate_keys, ECEG_encrypt, ECEG_decrypt
 from rfc7748 import add
-from random import randint
-from algebra import mod_inv, int_to_bytes
+from algebra import int_to_bytes
 from Crypto.Hash import SHA256
 
 p = 2**255 - 19
 ORDER = (2**252 + 27742317777372353535851937790883648493)
 
+# Generating the election authority's keys
+election_private_key, election_public_key = ECEG_generate_keys()
 
-# Hash function
-def H(data):
-    """Compute the SHA256 hash of the input data."""
-    if isinstance(data, int):
-        data = int_to_bytes(data)  # Convert integer to bytes
-    hash_obj = SHA256.new(data)
-    return int(hash_obj.hexdigest(), 16)
+def encrypt_ballot(vote):
+    """
+    Encrypts a ballot using the election authority's public key.
 
+    Args:
+        vote (list): A list of 0/1 for the chosen candidate(s).
 
-# Sign and verify ballots
-def sign_ballot(vote, ecdsa_private_key):
-    ballot_hash = H(sum(vote))  # Simple hash of the ballot sum
-    return ECDSA_sign(int_to_bytes(ballot_hash), ecdsa_private_key)
+    Returns:
+        list: A list of (R_i, S_i) tuples for each candidate.
+    """
+    return [ECEG_encrypt(v, election_public_key) for v in vote]
 
-
-def verify_ballot(vote, signature, ecdsa_public_key):
-    ballot_hash = H(sum(vote))  # Simple hash of the ballot sum
-    return ECDSA_verify(int_to_bytes(ballot_hash), signature[0], signature[1], ecdsa_public_key)
-
-
-# Generate voting keys for voters
-def generate_voter_keys(num_voters):
-    voter_keys = {}
-    for i in range(1, num_voters + 1):
-        voter_keys[i] = {
-            "private_key": None,
-            "public_key": None,
-            "ecdsa": ECDSA_generate_keys(),
-        }
-        voter_keys[i]["private_key"], voter_keys[i]["public_key"] = ECEG_generate_keys()
-    return voter_keys
-
-
-# Encrypt ballot for a single voter
-def encrypt_ballot(vote, voter_public_key):
-    return [ECEG_encrypt(v, voter_public_key) for v in vote]
-
-
-# Sum encrypted votes homomorphically
 def sum_encrypted_votes(encrypted_votes):
+    """
+    Homomorphically sums encrypted votes.
+
+    Args:
+        encrypted_votes (list): A list of ballots, 
+                                each ballot is a list of (R_i, S_i) tuples for i in [0..num_candidates-1].
+
+    Returns:
+        list: A list of (R_sum_i, S_sum_i) tuples for i in [0..num_candidates-1].
+    """
     num_candidates = len(encrypted_votes[0])
+    # Initialize R_sum, S_sum with the first ballot
     R_sum = [encrypted_votes[0][i][0] for i in range(num_candidates)]
     S_sum = [encrypted_votes[0][i][1] for i in range(num_candidates)]
 
-    for encrypted_ballot in encrypted_votes[1:]:
+    for ballot in encrypted_votes[1:]:
         for i in range(num_candidates):
-            R_sum[i] = add(R_sum[i][0], R_sum[i][1], encrypted_ballot[i][0][0], encrypted_ballot[i][0][1], p)
-            S_sum[i] = add(S_sum[i][0], S_sum[i][1], encrypted_ballot[i][1][0], encrypted_ballot[i][1][1], p)
+            R_sum[i] = add(R_sum[i][0], R_sum[i][1],
+                           ballot[i][0][0], ballot[i][0][1], p)
+            S_sum[i] = add(S_sum[i][0], S_sum[i][1],
+                           ballot[i][1][0], ballot[i][1][1], p)
 
     return list(zip(R_sum, S_sum))
 
+def ECEG_decrypt_point(R, S, private_key):
+    """
+    Decrypts an encrypted point using the election authority's private key.
 
-# Decrypt the results using the election private key
-def decrypt_results(encrypted_results, election_private_key):
-    decrypted_votes = []
-    for R, S in encrypted_results:
-        M = ECEG_decrypt(R, S, election_private_key)
-        decrypted_votes.append(bruteECLog(BaseU, M, p))
-    return decrypted_votes
+    Args:
+        R (tuple): The R component of the encrypted point.
+        S (tuple): The S component of the encrypted point.
+        private_key (tuple): The election authority's private key.
 
+    Returns:
+        tuple: The decrypted point M.
+    """
+    return ECEG_decrypt(R, S, private_key)  # Adjust ecelgamal.py to return the point!
 
-# Voting system
+def decode_point(M, max_votes):
+    """
+    Decodes a point to an integer by brute force.
+
+    Args:
+        M (tuple): The point to decode.
+        max_votes (int): The maximum number of votes.
+
+    Returns:
+        int: The decoded integer.
+    """
+    from rfc7748 import add
+    from ecelgamal import BaseU, BaseV
+    candidate = (1, 0)  # Infinity => 0
+    for m in range(max_votes + 1):
+        if candidate == M:
+            return m
+        candidate = add(candidate[0], candidate[1], BaseU, BaseV, p)
+    raise ValueError("Could not decode point M.")
+
 if __name__ == "__main__":
     num_voters = 10
     num_candidates = 5
 
-    # Generate keys for voters
-    voter_keys = generate_voter_keys(num_voters)
-
-    # Collect votes (Example votes: each voter votes for one candidate)
+    # Example votes
     votes = [
         [1, 0, 0, 0, 0],
         [0, 1, 0, 0, 0],
@@ -92,19 +98,19 @@ if __name__ == "__main__":
         [0, 0, 0, 1, 0],
     ]
 
-    # Encrypt votes and sign ballots
-    encrypted_votes = []
-    for voter_id, vote in enumerate(votes, 1):
-        encrypted_ballot = encrypt_ballot(vote, voter_keys[voter_id]["public_key"])
-        signature = sign_ballot(vote, voter_keys[voter_id]["ecdsa"][0])
-        assert verify_ballot(vote, signature, voter_keys[voter_id]["ecdsa"][1]), "Signature verification failed!"
-        encrypted_votes.append(encrypted_ballot)
+    # Ecrypt all votes using the election authority's public key
+    encrypted_votes = [encrypt_ballot(vote) for vote in votes]
 
-    # Sum encrypted votes homomorphically
+    # Homomorphically sum all encrypted votes
     encrypted_results = sum_encrypted_votes(encrypted_votes)
 
-    # Decrypt results (assuming election private key)
-    election_private_key = randint(1, ORDER - 1)  # Replace with actual election private key
-    decrypted_results = decrypt_results(encrypted_results, election_private_key)
+    # Decrypt the result
+    final_counts = []
+    for (R, S) in encrypted_results:
+        # 1) Decrypt to get the "summed" point M
+        M_point = ECEG_decrypt_point(R, S, election_private_key)
+        # 2) Brute force decode that point to an integer
+        candidate_count = decode_point(M_point, max_votes=num_voters)
+        final_counts.append(candidate_count)
 
-    print("Election results (votes per candidate):", decrypted_results)
+    print("Election results (votes per candidate):", final_counts)

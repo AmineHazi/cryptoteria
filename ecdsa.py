@@ -10,21 +10,52 @@ BaseV = computeVcoordinate(BaseU)
 
 # Hash function
 def H(message):
+    """
+    Hashes the input message using SHA256.
+
+    Args:
+        message (bytes): The message to hash.
+
+    Returns:
+        int: The hash of the message as an integer.
+    """
     h = SHA256.new(message)
     return int(h.hexdigest(), 16)
 
 # Generate ECDSA keys
 def ECDSA_generate_keys():
+    """
+    Generates a pair of ECDSA keys.
+
+    Returns:
+        tuple: A tuple containing the private key (int) and the public key (tuple of ints).
+    """
     private_key = randint(1, ORDER - 1)
     public_key = mult(private_key, BaseU, BaseV, p)
     return private_key, public_key
 
 # Generate nonce
 def ECDSA_generate_nonce():
+    """
+    Generates a nonce for ECDSA.
+
+    Returns:
+        int: A random nonce.
+    """
     return randint(1, ORDER - 1)
 
 # Generate ECDSA signature
 def ECDSA_sign(message, private_key):
+    """
+    Generates an ECDSA signature for a given message.
+
+    Args:
+        message (bytes): The message to sign.
+        private_key (int): The private key to sign the message with.
+
+    Returns:
+        tuple: A tuple containing the signature components r and s (both ints).
+    """
     z = H(message) % ORDER
     k = ECDSA_generate_nonce()
 
@@ -44,6 +75,18 @@ def ECDSA_sign(message, private_key):
 
 # Verify ECDSA signature
 def ECDSA_verify(message, r, s, public_key):
+    """
+    Verifies an ECDSA signature.
+
+    Args:
+        message (bytes): The signed message.
+        r (int): The r component of the signature.
+        s (int): The s component of the signature.
+        public_key (tuple): The public key corresponding to the private key that signed the message.
+
+    Returns:
+        bool: True if the signature is valid, False otherwise.
+    """
     if not (0 < r < ORDER and 0 < s < ORDER):
         return False
 
