@@ -1,6 +1,6 @@
 # election_elgamal_dsa.py
 
-from entities import (
+from elgamal_dsa_votes.entities import (
     Voter,
     Candidate,
     ElectionAuthority,
@@ -30,7 +30,6 @@ class Election:
         'vote_bits' is a list of 0/1 of length num_candidates.
         We use *Additive* ElGamal => EGA_encrypt.
         """
-        from elgamal import EGA_encrypt
         ciphertext = []
         for bit in vote_bits:
             c1, c2 = EGA_encrypt(bit, self.authority.pub, PARAM_P, PARAM_G)
@@ -60,7 +59,6 @@ class Election:
         """
         We get g^m mod p. We brute force in [0..max_votes].
         """
-        from elgamal import bruteLog, PARAM_G, PARAM_P
         m = bruteLog(PARAM_G, gm_val, PARAM_P)
         if m != -1 and m <= max_votes:
             return m

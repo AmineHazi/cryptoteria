@@ -1,7 +1,8 @@
 # election.py
 
-from entities import Voter, Candidate, ElectionAuthority
-from ecelgamal import ECEG_encrypt
+from ecelgamal_ecdsa_votes.entities import Voter, Candidate, ElectionAuthority, serialize_ec_ciphertext
+from ecelgamal import ECEG_encrypt, BaseU, BaseV
+from ecdsa import ECDSA_verify
 from rfc7748 import add
 from algebra import int_to_bytes
 
@@ -67,8 +68,6 @@ class Election:
         Brute force decode M_point in [0..max_votes].
         We check repeated additions of (BaseU, BaseV).
         """
-        from rfc7748 import add
-        from ecelgamal import BaseU, BaseV
         candidate = (1, 0)  # Infinity => 0
         for m in range(max_votes+1):
             if candidate == M_point:
@@ -101,11 +100,9 @@ class Election:
         valid_ballots = []
         for (ct, sig, i) in all_encrypted_ballots:
             voter_pub = self.voters[i].ecdsa_pub
-            from entities import serialize_ec_ciphertext
             data = serialize_ec_ciphertext(ct)
 
             # We can also re-check with ecdsa.py if needed:
-            from ecdsa import ECDSA_verify
             (r, s) = sig
             if ECDSA_verify(data, r, s, voter_pub):
                 valid_ballots.append(ct)

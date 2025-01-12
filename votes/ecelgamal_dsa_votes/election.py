@@ -1,13 +1,13 @@
 # election_ecelgamal_dsa.py
 
-from entities import (
+from ecelgamal_dsa_votes.entities import (
     Voter,
     Candidate,
     ElectionAuthority,
     verify_ballot_dsa
 )
 from rfc7748 import add
-from ecelgamal import ECEG_encrypt, ECEG_decrypt
+from ecelgamal import ECEG_encrypt, ECEG_decrypt, BaseU, BaseV
 from algebra import int_to_bytes
 
 p = 2**255 - 19
@@ -62,8 +62,6 @@ class Election:
         """
         Brute force from 0..max_votes on the curve.
         """
-        from rfc7748 import add
-        from ecelgamal import BaseU, BaseV
         candidate = (1,0)
         for m in range(max_votes+1):
             if candidate == M_point:

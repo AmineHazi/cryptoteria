@@ -1,6 +1,6 @@
 # election_elgamal_ecdsa.py
 
-from entities import (
+from elgamal_ecdsa_votes.entities import (
     Voter,
     Candidate,
     ElectionAuthority,
@@ -45,7 +45,6 @@ class Election:
         """
         gm = g^m mod p. Brute force in [0..max_votes].
         """
-        from elgamal import bruteLog, PARAM_G, PARAM_P
         m = bruteLog(PARAM_G, gm, PARAM_P)
         if 0 <= m <= max_votes:
             return m
